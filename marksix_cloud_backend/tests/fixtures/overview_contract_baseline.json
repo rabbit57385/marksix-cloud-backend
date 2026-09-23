@@ -1,0 +1,16 @@
+{
+  "payload_sha256": "0b8226a53ac2f97e7ca78ec9dd289226dd7a768a559b56ad41f06aa8fc2543e7",
+  "overview_path_sha256": "1ad136439da8fe1e68f4639d6c12756a08a205276caec345f502e06c92d012b7",
+  "schemas": {
+    "Draw": "5c1adffeea95bc7aee319b0b6d8ec774bb672e0b6811ca5d0d3370754d88c0d8",
+    "DrawCountsResponse": "6511f7e2ce48285e3a5799b6164e11088034bb71ecfcca5aa56352563f751de1",
+    "HTTPValidationError": "7373c21f1389312367e27e440140ba11d587693c56d8aa27249b36d3f58c10c6",
+    "MissingNumber": "0a5e69e8b6e39628984bd33e325a05742337482cf72766f9ed5797847cccb190",
+    "MissingNumbersResponse": "6c271fa3a34e577ae9bac4b1fb83d041143591164801a57d051c1d836d0235a0",
+    "NumberCount": "ea8f035c9be6dbb419602b6ad566dd6f1735f0c94a2aab586059063aed591ef5",
+    "OverviewResponse": "9b98aa2fd4f82e44f04521511c0ea486d41f21a58faf5b64ffa662a8c55c48e9",
+    "RecentDraws": "c3b01d07a2c83ed88b86c0a08ad487339452ed00a78e4c8262ae2130d6528631",
+    "SnapshotMetadata": "edc6ebe67b0bb164c19db3157bb73a0a5ef3e655a05a66afdd6d85022c1d29fe",
+    "ValidationError": "ca285d0c0e64c42844efd2e860edb239e77cc49d87f065c5ccb7d2f55331b862"
+  }
+}

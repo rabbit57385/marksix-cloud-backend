@@ -4,12 +4,8 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 
-if __package__:
-    from .database import SELECT_COLUMNS, connect_database, row_to_draw
-    from .models import validate_draw
-else:
-    from database import SELECT_COLUMNS, connect_database, row_to_draw
-    from models import validate_draw
+from .database import SELECT_COLUMNS, connect_database, row_to_draw
+from .models import validate_draw
 
 ANALYSIS_START_DATE = date(2020, 1, 1)
 

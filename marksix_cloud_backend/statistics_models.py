@@ -4,10 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-if __package__:
-    from .models import Ball, Draw
-else:
-    from models import Ball, Draw
+from .models import Ball, Draw
 
 NonnegativeInt = Annotated[int, Field(strict=True, ge=0)]
 

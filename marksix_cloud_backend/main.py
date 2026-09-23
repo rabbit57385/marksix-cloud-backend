@@ -1,6 +1,7 @@
 """Read-only raw draws and single-number descriptive statistics."""
 
 import logging
+from datetime import date
 from typing import Annotated
 
 import psycopg
@@ -8,18 +9,15 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-if __package__:
-    from .database import DatabaseConfigurationError, DrawRepository
-    from .models import Draw, RecentDraws
-    from .analysis_repository import ANALYSIS_START_DATE, AnalysisDataError, AnalysisRepository, AnalysisSnapshot
-    from .statistics_core import WINDOWS, InsufficientHistory, draw_counts_response, missing_numbers_response, snapshot_metadata
-    from .statistics_models import DrawCountsResponse, MissingNumbersResponse, OverviewResponse
-else:
-    from database import DatabaseConfigurationError, DrawRepository
-    from models import Draw, RecentDraws
-    from analysis_repository import ANALYSIS_START_DATE, AnalysisDataError, AnalysisRepository, AnalysisSnapshot
-    from statistics_core import WINDOWS, InsufficientHistory, draw_counts_response, missing_numbers_response, snapshot_metadata
-    from statistics_models import DrawCountsResponse, MissingNumbersResponse, OverviewResponse
+from .analysis_engine import build_analysis_foundation
+from .analysis_models import AnalysisResponse
+from .analysis_response import analysis_response
+from .analysis_repository import InvalidCutoff, validate_cutoffs
+from .database import DatabaseConfigurationError, DrawRepository
+from .models import Draw, RecentDraws
+from .analysis_repository import ANALYSIS_START_DATE, AnalysisDataError, AnalysisRepository, AnalysisSnapshot
+from .statistics_core import WINDOWS, InsufficientHistory, draw_counts_response, missing_numbers_response, snapshot_metadata
+from .statistics_models import DrawCountsResponse, MissingNumbersResponse, OverviewResponse
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="MarkSix Data API", version="0.1.0")
@@ -137,3 +135,33 @@ def overview(
         "missing": missing_numbers_response(snapshot, False),
         "analysis": snapshot_metadata(snapshot, False, None, len(snapshot.draws)),
     }
+
+
+def get_production_analysis_snapshot(
+    repository: Annotated[AnalysisRepository, Depends(get_analysis_repository)],
+    cutoff_date: date | None = None,
+    cutoff_draw: str | None = None,
+    include_cutoff_draw: bool = True,
+) -> AnalysisSnapshot:
+    # Same repository semantics; overview's existing dependency is untouched.
+    try:
+        validate_cutoffs(cutoff_date, cutoff_draw, include_cutoff_draw)
+        snapshot = repository.load_analysis_draws(
+            cutoff_date=cutoff_date, cutoff_draw=cutoff_draw,
+            include_cutoff_draw=include_cutoff_draw,
+        )
+    except InvalidCutoff:
+        raise HTTPException(status_code=422, detail="Invalid analysis cutoff") from None
+    if not isinstance(snapshot, AnalysisSnapshot):
+        raise AnalysisDataError("Invalid repository snapshot")
+    return snapshot
+
+
+@app.get("/api/v1/marksix/analysis", response_model=AnalysisResponse)
+def production_analysis(
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_production_analysis_snapshot)],
+):
+    """PRIMARY V7 foundation: current rows, current/previous cutoff metadata."""
+    if not snapshot.draws:
+        raise HTTPException(status_code=404, detail="No Mark Six analysis draws available")
+    return analysis_response(build_analysis_foundation(snapshot))

@@ -1,9 +1,6 @@
 """Single-number descriptive statistics only; no scoring or recommendations."""
 
-if __package__:
-    from .analysis_repository import ANALYSIS_START_DATE, AnalysisDraw, AnalysisSnapshot
-else:
-    from analysis_repository import ANALYSIS_START_DATE, AnalysisDraw, AnalysisSnapshot
+from .analysis_repository import ANALYSIS_START_DATE, AnalysisDraw, AnalysisSnapshot
 
 TOTAL_NUMBERS = 49
 MAIN_NUMBERS_PER_DRAW = 6

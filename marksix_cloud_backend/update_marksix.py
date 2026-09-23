@@ -7,14 +7,9 @@ import logging
 import psycopg
 from pydantic import ValidationError
 
-if __package__:
-    from .database import DatabaseConfigurationError, connect_database, database_url, store_draw
-    from .hkjc_client import HkjcError, fetch_recent_draws
-    from .models import validate_draw
-else:
-    from database import DatabaseConfigurationError, connect_database, database_url, store_draw
-    from hkjc_client import HkjcError, fetch_recent_draws
-    from models import validate_draw
+from .database import DatabaseConfigurationError, connect_database, database_url, store_draw
+from .hkjc_client import HkjcError, fetch_recent_draws
+from .models import validate_draw
 
 logger = logging.getLogger(__name__)
 

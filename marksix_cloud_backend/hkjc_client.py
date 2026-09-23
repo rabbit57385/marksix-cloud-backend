@@ -10,10 +10,7 @@ from datetime import date, datetime
 
 import requests
 
-if __package__:
-    from .models import validate_draw
-else:
-    from models import validate_draw
+from .models import validate_draw
 
 PAGE_URL = "https://bet.hkjc.com/ch/marksix/results"
 ENDPOINT = "https://info.cld.hkjc.com/graphql/base/"

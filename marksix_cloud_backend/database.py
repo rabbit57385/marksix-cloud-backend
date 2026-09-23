@@ -6,10 +6,7 @@ from datetime import date
 import psycopg
 from psycopg.rows import dict_row
 
-if __package__:
-    from .models import validate_draw
-else:
-    from models import validate_draw
+from .models import validate_draw
 
 
 class DatabaseConfigurationError(RuntimeError):

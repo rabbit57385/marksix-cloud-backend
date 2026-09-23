@@ -78,7 +78,7 @@ class ApiTests(unittest.TestCase):
         paths = set(self.client.get("/openapi.json").json()["paths"])
         self.assertEqual(paths, {"/health", "/api/v1/marksix/recent-draws", "/api/v1/marksix/latest",
                                  "/api/v1/marksix/draw-counts", "/api/v1/marksix/missing-numbers",
-                                 "/api/v1/marksix/overview"})
+                                 "/api/v1/marksix/overview", "/api/v1/marksix/analysis"})
 
     def test_response_schema_rejects_invalid_repository_data(self):
         self.repository.latest.return_value = sample_draw(numbers=[1, 2, 3, 4, 5])
