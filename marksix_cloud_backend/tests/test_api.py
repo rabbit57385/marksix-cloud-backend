@@ -74,11 +74,15 @@ class ApiTests(unittest.TestCase):
         for secret in ("private", "postgres://secret"):
             self.assertNotIn(secret, response.text + "\n".join(logs.output))
 
-    def test_only_raw_draw_and_pure_statistics_endpoints(self):
+    def test_only_documented_draw_statistics_and_sync_endpoints(self):
         paths = set(self.client.get("/openapi.json").json()["paths"])
         self.assertEqual(paths, {"/health", "/api/v1/marksix/recent-draws", "/api/v1/marksix/latest",
                                  "/api/v1/marksix/draw-counts", "/api/v1/marksix/missing-numbers",
-                                 "/api/v1/marksix/overview", "/api/v1/marksix/analysis"})
+                                 "/api/v1/marksix/overview", "/api/v1/marksix/analysis",
+                                 "/api/v1/marksix/freshness", "/api/v1/marksix/admin/catch-up"})
+        methods = self.client.get("/openapi.json").json()["paths"]
+        self.assertEqual(set(methods["/api/v1/marksix/freshness"]), {"get"})
+        self.assertEqual(set(methods["/api/v1/marksix/admin/catch-up"]), {"post"})
 
     def test_response_schema_rejects_invalid_repository_data(self):
         self.repository.latest.return_value = sample_draw(numbers=[1, 2, 3, 4, 5])

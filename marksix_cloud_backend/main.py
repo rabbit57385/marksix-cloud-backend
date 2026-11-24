@@ -1,11 +1,13 @@
 """Read-only raw draws and single-number descriptive statistics."""
 
 import logging
+import os
+from secrets import compare_digest
 from datetime import date
 from typing import Annotated
 
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -15,6 +17,7 @@ from .analysis_response import analysis_response
 from .analysis_repository import InvalidCutoff, validate_cutoffs
 from .database import DatabaseConfigurationError, DrawRepository
 from .models import Draw, RecentDraws
+from .draw_sync import freshness, source_revision, synchronize
 from .analysis_repository import ANALYSIS_START_DATE, AnalysisDataError, AnalysisRepository, AnalysisSnapshot
 from .statistics_core import WINDOWS, InsufficientHistory, draw_counts_response, missing_numbers_response, snapshot_metadata
 from .statistics_models import DrawCountsResponse, MissingNumbersResponse, OverviewResponse
@@ -85,17 +88,53 @@ def health():
     return {"status": "ok", "service": "marksix"}
 
 
+@app.get("/api/v1/marksix/freshness")
+def draw_freshness(response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return freshness()
+
+
+@app.post("/api/v1/marksix/admin/catch-up")
+def admin_catch_up(authorization: Annotated[str | None, Header()] = None):
+    token = os.getenv("MARKSIX_CATCH_UP_TOKEN", "")
+    if not token:
+        raise HTTPException(status_code=503, detail="Mark Six catch-up disabled")
+    if not compare_digest((authorization or "").encode(), f"Bearer {token}".encode()):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    status, retry = synchronize()
+    return JSONResponse(
+        status_code={"completed": 200, "in_progress": 202, "cooldown": 429, "retry_later": 503}[status],
+        headers={"Retry-After": str(retry)},
+        content={"status": status, "retry_after_seconds": retry},
+    )
+
+
 @app.get("/api/v1/marksix/recent-draws", response_model=RecentDraws)
 def recent_draws(
+    response: Response,
     repository: Annotated[DrawRepository, Depends(get_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 20,
+    consistent: bool = False,
 ):
+    if consistent:
+        snapshot = AnalysisRepository().load_analysis_draws()
+        response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
+        return {"draws": [row.as_dict() for row in snapshot.newest_first()[:limit]]}
     return {"draws": repository.recent(limit)}
 
 
 @app.get("/api/v1/marksix/latest", response_model=Draw)
-def latest_draw(repository: Annotated[DrawRepository, Depends(get_repository)]):
-    draw = repository.latest()
+def latest_draw(
+    response: Response,
+    repository: Annotated[DrawRepository, Depends(get_repository)],
+    consistent: bool = False,
+):
+    if consistent:
+        snapshot = AnalysisRepository().load_analysis_draws()
+        response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
+        draw = snapshot.draws[-1].as_dict() if snapshot.draws else None
+    else:
+        draw = repository.latest()
     if draw is None:
         raise HTTPException(status_code=404, detail="No Mark Six draws available")
     return draw
@@ -103,23 +142,28 @@ def latest_draw(repository: Annotated[DrawRepository, Depends(get_repository)]):
 
 @app.get("/api/v1/marksix/draw-counts", response_model=DrawCountsResponse)
 def draw_counts(
+    response: Response,
     window: Annotated[int, Depends(get_statistics_window)],
     snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
     include_special: bool = False,
 ):
+    response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
     return draw_counts_response(snapshot, window, include_special)
 
 
 @app.get("/api/v1/marksix/missing-numbers", response_model=MissingNumbersResponse)
 def missing_numbers(
+    response: Response,
     snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
     include_special: bool = False,
 ):
+    response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
     return missing_numbers_response(snapshot, include_special)
 
 
 @app.get("/api/v1/marksix/overview", response_model=OverviewResponse)
 def overview(
+    response: Response,
     snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
 ):
     """Primary six-number homepage, using exactly one request-scoped snapshot."""
@@ -127,6 +171,7 @@ def overview(
         raise HTTPException(status_code=404, detail="No Mark Six analysis draws available")
     if len(snapshot.draws) < max(WINDOWS):
         raise InsufficientHistory(max(WINDOWS), len(snapshot.draws))
+    response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
     return {
         "latest": snapshot.draws[-1].as_dict(),
         "recent_draws": [draw.as_dict() for draw in snapshot.newest_first()[:20]],
@@ -159,9 +204,11 @@ def get_production_analysis_snapshot(
 
 @app.get("/api/v1/marksix/analysis", response_model=AnalysisResponse)
 def production_analysis(
+    response: Response,
     snapshot: Annotated[AnalysisSnapshot, Depends(get_production_analysis_snapshot)],
 ):
     """PRIMARY V7 foundation: current rows, current/previous cutoff metadata."""
     if not snapshot.draws:
         raise HTTPException(status_code=404, detail="No Mark Six analysis draws available")
+    response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
     return analysis_response(build_analysis_foundation(snapshot))

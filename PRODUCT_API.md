@@ -102,3 +102,27 @@ Overview tests cover one-query access, shared snapshot/cutoff, contracts/formula
 excluded 1993 records, missing bounds, empty/insufficient history, DB errors and
 independent-request refresh. Run the selected suite using the clean virtual
 environment as documented in README.md.
+
+## Draw synchronization (P1-01 local candidate)
+
+The API process does not start a scheduler or run a migration. Apply
+`draw_sync_migration.sql` explicitly after database approval, then configure
+`MARKSIX_CATCH_UP_TOKEN` on the server and in the scheduler secret store.
+Inspect the hosting dashboard for an existing MarkSix schedule and select one
+owner before enabling the repository workflow. The workflow sends one request
+per run. A later schedule retries a transient failure without replaying an
+uncertain POST. The CLI equivalent is
+`python -m marksix_cloud_backend.draw_sync`.
+
+`GET /api/v1/marksix/freshness` reports the rolling official window, latest
+draw, and revision. `POST /api/v1/marksix/admin/catch-up` is server-side only,
+requires Bearer authentication, and uses a PostgreSQL lock and cooldown shared
+with the CLI. A batch succeeds atomically or rolls back on conflict. A conflict
+requires investigation, and existing draw records are preserved.
+
+The freshness revision hashes normalized draws since 2020. Analysis, overview,
+counts and missing responses expose it in `X-MarkSix-Source-Revision`. Latest
+and recent draws expose the same header on `consistent=true`, using that same
+analysis scope. The default raw endpoints keep their archive semantics.
+Enable the V3 `MARKSIX_DRAW_SYNC` build flag only after confirming the deployed
+read contract. V3 checks freshness and never holds the operator token.

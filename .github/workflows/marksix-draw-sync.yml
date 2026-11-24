@@ -1,0 +1,33 @@
+name: MarkSix draw synchronization
+on:
+  schedule:
+    # UTC. Hong Kong 21:50, 22:20, 23:20, then 08:15 for delayed publication.
+    - cron: '50 13 * * *'
+    - cron: '20 14,15 * * *'
+    - cron: '15 0 * * *'
+  workflow_dispatch:
+
+permissions: {}
+concurrency:
+  group: marksix-production-draw-sync
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Run authenticated synchronization once
+        env:
+          MARKSIX_CATCH_UP_TOKEN: ${{ secrets.MARKSIX_CATCH_UP_TOKEN }}
+        run: |
+          set -eu
+          test -n "$MARKSIX_CATCH_UP_TOKEN"
+          code=$(curl --silent --show-error --proto '=https' --connect-timeout 15 \
+            --max-time 240 --request POST --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $MARKSIX_CATCH_UP_TOKEN" \
+            https://marksix-cloud-backend.onrender.com/api/v1/marksix/admin/catch-up)
+          case "$code" in
+            200|202|429) echo "MarkSix synchronization status: $code" ;;
+            *) echo "MarkSix synchronization failed: HTTP $code"; exit 1 ;;
+          esac
