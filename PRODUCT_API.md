@@ -12,8 +12,8 @@ Existing endpoints remain unchanged:
 
 ## Homepage overview
 
-`GET /api/v1/marksix/overview` has no configurable parameters. It always uses
-six main numbers (`include_special=false`) and returns:
+`GET /api/v1/marksix/overview` accepts `include_special` (default false). The default uses six main
+numbers and true includes the actual special ball. Both modes return:
 
 - `latest`: existing Draw contract: draw, date, numbers[6], special_number.
 - `recent_draws`: latest 20 analysis draws, newest first, same Draw contract.
@@ -25,10 +25,17 @@ six main numbers (`include_special=false`) and returns:
 - `missing`: existing MissingNumbersResponse, including 49 entries with number,
   missing_periods, is_lower_bound, last_draw and last_date.
 - `analysis`: existing SnapshotMetadata. analysis_start_date is `2020-01-01`,
-  include_special is false, theoretical_probability is 6/49, window is null,
+  include_special matches the request, theoretical_probability is 6/49 or 7/49, window is null,
   actual_draw_count and available_draw_count describe all available analysis
   records. first_available_date, latest_draw, cutoff_draw and cutoff_date
   identify the data used.
+
+`GET /api/v1/marksix/analysis` accepts the same mode, defaults to false,
+and returns the same V7 fields for all 49 numbers, using at least 101 draws.
+`GET /api/v1/marksix/count-missing-cross` accepts `include_special` and
+`window` (10/30/50/100, default 30). It applies the existing A7 v1.1 cross
+formula and A2/A3/A4 candidate thresholds to the MarkSix mode-specific current
+and previous snapshots. Both endpoints expose the source revision header.
 
 One connection and one SELECT produce one immutable snapshot. Every component
 uses it; computation makes no additional DB calls. A subsequent request reads
@@ -40,9 +47,9 @@ also excludes earlier records. Overview latest/recent therefore refer to the
 analysis scope. Existing raw latest/recent endpoints remain unfiltered archives.
 1993 records are retained in PostgreSQL and cannot supply overview warm-up.
 
-All four windows must be complete. Ratio = count / (window * 6/49).
+All four windows must be complete. Ratio = count / (window * theoretical_probability).
 Ratio 1 is the theoretical average, not a prediction or winning probability.
-Special number is returned separately and never contributes to primary counts.
+Special number is returned separately and contributes to counts only in seven-ball mode.
 Missing counts observed draws backwards from the same cutoff: latest presence
 is zero. Never-seen numbers have missing_periods equal to available history,
 is_lower_bound=true and null last_draw/last_date. No archive completeness claim.

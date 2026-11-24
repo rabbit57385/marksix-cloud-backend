@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .analysis_engine import build_analysis_foundation
+from .count_missing_cross import count_missing_cross_response
 from .analysis_models import AnalysisResponse
 from .analysis_response import analysis_response
 from .analysis_repository import InvalidCutoff, validate_cutoffs
@@ -165,8 +166,9 @@ def missing_numbers(
 def overview(
     response: Response,
     snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
 ):
-    """Primary six-number homepage, using exactly one request-scoped snapshot."""
+    """Mode-specific homepage, using exactly one request-scoped snapshot."""
     if not snapshot.draws:
         raise HTTPException(status_code=404, detail="No Mark Six analysis draws available")
     if len(snapshot.draws) < max(WINDOWS):
@@ -175,10 +177,10 @@ def overview(
     return {
         "latest": snapshot.draws[-1].as_dict(),
         "recent_draws": [draw.as_dict() for draw in snapshot.newest_first()[:20]],
-        "momentum": {str(window): draw_counts_response(snapshot, window, False)
+        "momentum": {str(window): draw_counts_response(snapshot, window, include_special)
                      for window in WINDOWS},
-        "missing": missing_numbers_response(snapshot, False),
-        "analysis": snapshot_metadata(snapshot, False, None, len(snapshot.draws)),
+        "missing": missing_numbers_response(snapshot, include_special),
+        "analysis": snapshot_metadata(snapshot, include_special, None, len(snapshot.draws)),
     }
 
 
@@ -206,9 +208,21 @@ def get_production_analysis_snapshot(
 def production_analysis(
     response: Response,
     snapshot: Annotated[AnalysisSnapshot, Depends(get_production_analysis_snapshot)],
+    include_special: bool = False,
 ):
-    """PRIMARY V7 foundation: current rows, current/previous cutoff metadata."""
+    """V7 foundation: current rows, current/previous cutoff metadata."""
     if not snapshot.draws:
         raise HTTPException(status_code=404, detail="No Mark Six analysis draws available")
     response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
-    return analysis_response(build_analysis_foundation(snapshot))
+    return analysis_response(build_analysis_foundation(snapshot, include_special))
+
+
+@app.get("/api/v1/marksix/count-missing-cross")
+def count_missing_cross(
+    response: Response,
+    window: Annotated[int, Depends(get_statistics_window)],
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
+    return count_missing_cross_response(snapshot, window, include_special)

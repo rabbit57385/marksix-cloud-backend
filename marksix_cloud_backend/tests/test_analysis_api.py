@@ -67,6 +67,36 @@ class AnalysisApiTests(unittest.TestCase):
             })
         self.assertNotEqual(expected.current.cutoff_draw, expected.previous.cutoff_draw)
 
+    def test_mode_specific_real_special_counts_and_cross(self):
+        six = self.client.get(PATH).json()
+        seven = self.client.get(PATH, params={"include_special": True})
+        self.assertEqual(seven.status_code, 200)
+        result = seven.json()
+        self.assertTrue(result["metadata"]["include_special"])
+        self.assertEqual(result["metadata"]["theoretical_probability"], 7/49)
+        self.assertEqual(six, self.client.get(PATH, params={"include_special": False}).json())
+        for row in result["numbers"]:
+            number = row["number"]
+            for w in (10, 30, 50, 100):
+                expected = sum(number in (*d.numbers, d.special_number)
+                               for d in self.h.draws[-w:]) / (w * 7/49)
+                self.assertAlmostEqual(row["momentum"][str(w)], expected)
+        for mode in (False, True):
+            overview = self.client.get("/api/v1/marksix/overview", params={"include_special": mode})
+            self.assertEqual(overview.status_code, 200)
+            score_rows = self.client.get(PATH, params={"include_special": mode}).json()["numbers"]
+            for w in (10, 30, 50, 100):
+                cross = self.client.get("/api/v1/marksix/count-missing-cross",
+                                        params={"window": w, "include_special": mode})
+                self.assertEqual(cross.status_code, 200)
+                rows = cross.json()["numbers"]
+                self.assertEqual(len(rows), 49)
+                self.assertEqual(sum(r["count"] for r in rows), w * (7 if mode else 6))
+                self.assertEqual({r["number"]: r["v7_score"] for r in rows},
+                                 {r["number"]: r["score"] for r in score_rows})
+                self.assertEqual(cross.headers["x-marksix-source-revision"],
+                                 overview.headers["x-marksix-source-revision"])
+
     def test_one_connection_one_select_real_repository_path(self):
         main.app.dependency_overrides.clear()
         with patch.object(repo, "connect_database") as connect:
@@ -201,10 +231,19 @@ class AnalysisApiTests(unittest.TestCase):
         self.repository.load_analysis_draws.assert_called_once_with()
         self.assertEqual(digest(response.json()),baseline["payload_sha256"])
         spec=self.client.get("/openapi.json").json()
-        self.assertEqual(digest(spec["paths"]["/api/v1/marksix/overview"]),baseline["overview_path_sha256"])
+        overview_spec = copy.deepcopy(spec["paths"]["/api/v1/marksix/overview"])
+        params = overview_spec["get"].pop("parameters")
+        self.assertEqual([p["name"] for p in params], ["include_special"])
+        self.assertEqual(params[0]["schema"]["default"], False)
+        self.assertEqual(overview_spec["get"]["responses"].pop("422")["description"],
+                         "Validation Error")
+        self.assertEqual(overview_spec["get"]["description"],
+                         "Mode-specific homepage, using exactly one request-scoped snapshot.")
+        overview_spec["get"]["description"] = "Primary six-number homepage, using exactly one request-scoped snapshot."
+        self.assertEqual(digest(overview_spec),baseline["overview_path_sha256"])
         for name, sha in baseline["schemas"].items():
             self.assertEqual(digest(spec["components"]["schemas"][name]),sha,name)
         response_schema=spec["paths"][PATH]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
         self.assertEqual(response_schema,{"$ref":"#/components/schemas/AnalysisResponse"})
         self.assertEqual({p["name"] for p in spec["paths"][PATH]["get"]["parameters"]},
-                         {"cutoff_date","cutoff_draw","include_cutoff_draw"})
+                         {"cutoff_date","cutoff_draw","include_cutoff_draw","include_special"})

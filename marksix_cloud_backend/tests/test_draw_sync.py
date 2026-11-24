@@ -62,6 +62,30 @@ class DrawSyncDatabaseTest(unittest.TestCase):
         self.assertEqual(freshness()["source_revision"], confirmed["source_revision"])
         self.assertEqual(freshness()["sync_revision"], 1)
 
+    def test_dual_mode_analysis_and_cross_on_disposable_database(self):
+        from marksix_cloud_backend.tests.test_analysis_foundation import history
+        from marksix_cloud_backend.analysis_repository import AnalysisSnapshot
+        from marksix_cloud_backend.analysis_engine import build_analysis_foundation
+        from marksix_cloud_backend.analysis_response import analysis_response
+        records = history(103)
+        with connect_database() as connection:
+            for record in records:
+                store_draw(connection, record)
+        snapshot = AnalysisSnapshot.from_records(records)
+        with TestClient(app) as client:
+            for mode in (False, True):
+                analysis = client.get("/api/v1/marksix/analysis", params={"include_special": mode})
+                self.assertEqual(analysis.status_code, 200)
+                expected = analysis_response(build_analysis_foundation(snapshot, mode)).model_dump(mode="json")
+                self.assertEqual(analysis.json(), expected)
+                cross = client.get("/api/v1/marksix/count-missing-cross",
+                                   params={"include_special": mode, "window": 100})
+                self.assertEqual(cross.status_code, 200)
+                self.assertEqual(sum(row["count"] for row in cross.json()["numbers"]),
+                                 100 * (7 if mode else 6))
+                self.assertEqual(cross.headers["x-marksix-source-revision"],
+                                 analysis.headers["x-marksix-source-revision"])
+
     def test_api_authentication_and_same_snapshot_header(self):
         with TestClient(app) as client, patch(
             "marksix_cloud_backend.main.synchronize",

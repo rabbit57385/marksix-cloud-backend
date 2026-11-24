@@ -1,4 +1,4 @@
-"""Pure PRIMARY analysis from a single already-loaded MarkSix history."""
+"""Pure dual-mode analysis from a single already-loaded MarkSix history."""
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -38,8 +38,10 @@ class NumberAnalysisSnapshot:
     available_draw_count: int
     numbers: tuple[AnalysisNumber, ...]
     formula_version: str = field(default=FORMULA_VERSION, init=False)
-    include_special: bool = field(default=False, init=False)
-    theoretical_probability: float = field(default=theoretical_probability(False), init=False)
+    include_special: bool = False
+    @property
+    def theoretical_probability(self) -> float:
+        return theoretical_probability(self.include_special)
 
 
 @dataclass(frozen=True)
@@ -48,11 +50,11 @@ class AnalysisFoundation:
     previous: NumberAnalysisSnapshot
 
 
-def _analyze(history: AnalysisSnapshot) -> NumberAnalysisSnapshot:
-    counts = {w: count_by_window(history, w, False) for w in WINDOWS}
+def _analyze(history: AnalysisSnapshot, include_special: bool) -> NumberAnalysisSnapshot:
+    counts = {w: count_by_window(history, w, include_special) for w in WINDOWS}
     rows = []
     for number in range(1, 50):
-        ratios = tuple(momentum_ratio(counts[w][number], w, False) for w in WINDOWS)
+        ratios = tuple(momentum_ratio(counts[w][number], w, include_special) for w in WINDOWS)
         score, score_reasons, score_warnings = score_number(*ratios)
         extra_reasons, extra_warnings = build_reasons(*ratios)
         rows.append(AnalysisNumber(
@@ -63,10 +65,10 @@ def _analyze(history: AnalysisSnapshot) -> NumberAnalysisSnapshot:
             tuple(dict.fromkeys(score_warnings + extra_warnings)),
         ))
     latest = history.draws[-1]
-    return NumberAnalysisSnapshot(latest.draw, latest.date, len(history.draws), tuple(rows))
+    return NumberAnalysisSnapshot(latest.draw, latest.date, len(history.draws), tuple(rows), include_special)
 
 
-def build_analysis_foundation(history: AnalysisSnapshot) -> AnalysisFoundation:
+def build_analysis_foundation(history: AnalysisSnapshot, include_special: bool = False) -> AnalysisFoundation:
     """No IO. Caller loads history once with its requested cutoff.
 
     Rows are number-ascending, not a V7/ranking-page ranking. Previous is rebuilt
@@ -78,4 +80,4 @@ def build_analysis_foundation(history: AnalysisSnapshot) -> AnalysisFoundation:
     if len(history.draws) < 101:
         raise InsufficientHistory(101, len(history.draws))
     previous = AnalysisSnapshot(history.draws[:-1])
-    return AnalysisFoundation(_analyze(history), _analyze(previous))
+    return AnalysisFoundation(_analyze(history, include_special), _analyze(previous, include_special))

@@ -19,21 +19,14 @@ class AnalysisMetadata(BaseModel):
     engine_version: Literal["1.0.0"]
     formula_version: str
     game: Literal["marksix"]
-    include_special: Literal[False]
-    theoretical_probability: Literal[6 / 49]
+    include_special: bool
+    theoretical_probability: Literal[6 / 49, 7 / 49]
     analysis_start_date: Literal["2020-01-01"]
     cutoff_draw: str
     cutoff_date: str
     previous_cutoff_draw: str
     previous_cutoff_date: str
     available_draw_count: Annotated[int, Field(ge=101, strict=True)]
-
-    @field_validator("include_special", mode="before")
-    @classmethod
-    def primary_only(cls, value):
-        if value is not False:
-            raise ValueError("PRIMARY requires false")
-        return value
 
     @field_validator("formula_version")
     @classmethod
@@ -44,6 +37,8 @@ class AnalysisMetadata(BaseModel):
 
     @model_validator(mode="after")
     def consistent_cutoffs(self):
+        if self.theoretical_probability != (7 if self.include_special else 6) / 49:
+            raise ValueError("Probability does not match analysis mode")
         for draw, value in ((self.cutoff_draw, self.cutoff_date),
                             (self.previous_cutoff_draw, self.previous_cutoff_date)):
             day = date.fromisoformat(value)
