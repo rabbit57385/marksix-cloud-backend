@@ -80,7 +80,10 @@ class ApiTests(unittest.TestCase):
                                  "/api/v1/marksix/draw-counts", "/api/v1/marksix/missing-numbers",
                                  "/api/v1/marksix/overview", "/api/v1/marksix/analysis",
                                  "/api/v1/marksix/freshness", "/api/v1/marksix/admin/catch-up",
-                                 "/api/v1/marksix/count-missing-cross", "/api/v1/marksix/grade-history"})
+                                 "/api/v1/marksix/count-missing-cross", "/api/v1/marksix/grade-history",
+                                 "/api/v1/marksix/momentum-changes", "/api/v1/marksix/explosion-momentum",
+                                 "/api/v1/marksix/recovery-momentum", "/api/v1/marksix/reversal-momentum",
+                                 "/api/v1/marksix/overheat-warning", "/api/v1/marksix/focus-observation"})
         methods = self.client.get("/openapi.json").json()["paths"]
         self.assertEqual(set(methods["/api/v1/marksix/freshness"]), {"get"})
         self.assertEqual(set(methods["/api/v1/marksix/admin/catch-up"]), {"post"})

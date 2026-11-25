@@ -11,7 +11,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from .analysis_engine import build_analysis_foundation
+from .analysis_engine import _analyze, build_analysis_foundation
+from . import momentum_signals
+from .focus_observation import get_focus_observation
 from .count_missing_cross import count_missing_cross_response
 from .grade_history import grade_history_response
 from .analysis_models import AnalysisResponse
@@ -240,3 +242,69 @@ def grade_history(
     result = grade_history_response(snapshot, window, include_special)
     response.headers["X-MarkSix-Source-Revision"] = result["source_revision"]
     return result
+
+
+def signal_response(response, snapshot, data):
+    revision = source_revision(snapshot)
+    response.headers["X-MarkSix-Source-Revision"] = revision
+    return {"status": "ok", "source_revision": revision, "data": data}
+
+
+@app.get("/api/v1/marksix/momentum-changes")
+def momentum_changes(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    analysis = build_analysis_foundation(snapshot, include_special)
+    return signal_response(response, snapshot, momentum_signals.get_today_momentum_changes(snapshot, analysis))
+
+
+@app.get("/api/v1/marksix/explosion-momentum")
+def explosion_momentum(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    analysis = _analyze(snapshot, include_special)
+    return signal_response(response, snapshot, momentum_signals.get_explosion_momentum(snapshot, analysis))
+
+
+@app.get("/api/v1/marksix/recovery-momentum")
+def recovery_momentum(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    analysis = _analyze(snapshot, include_special)
+    return signal_response(response, snapshot, momentum_signals.get_recovery_momentum(snapshot, analysis))
+
+
+@app.get("/api/v1/marksix/reversal-momentum")
+def reversal_momentum(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    analysis = build_analysis_foundation(snapshot, include_special)
+    return signal_response(response, snapshot, momentum_signals.get_reversal_momentum(snapshot, analysis))
+
+
+@app.get("/api/v1/marksix/overheat-warning")
+def overheat_warning(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    analysis = build_analysis_foundation(snapshot, include_special)
+    return signal_response(response, snapshot, momentum_signals.get_overheat_momentum(snapshot, analysis))
+
+
+@app.get("/api/v1/marksix/focus-observation")
+def focus_observation(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    analysis = build_analysis_foundation(snapshot, include_special)
+    return signal_response(response, snapshot, get_focus_observation(snapshot, analysis))

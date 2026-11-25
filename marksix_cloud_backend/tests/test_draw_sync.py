@@ -103,6 +103,37 @@ class DrawSyncDatabaseTest(unittest.TestCase):
                     self.assertEqual(reply.status_code, 200)
                     self.assertEqual(reply.json(), grade_history_response(snapshot, window, mode))
 
+    def test_signal_endpoints_read_isolated_postgresql(self):
+        import json
+        from pathlib import Path
+        from marksix_cloud_backend.tests.test_momentum_signals import ENDPOINTS
+        fixture = Path(__file__).parent / "fixtures/marksix_recorded_200_draws.json"
+        records = json.loads(fixture.read_text(encoding="utf-8"))["draws"]
+        self.assertEqual(len(records), 200)
+        with connect_database() as connection:
+            for record in records:
+                store_draw(connection, record)
+        with TestClient(app) as client:
+            for mode in (False, True):
+                analysis = client.get("/api/v1/marksix/analysis", params={"include_special": mode})
+                self.assertEqual(analysis.status_code, 200)
+                revision = analysis.headers["x-marksix-source-revision"]
+                expected_counts = (17, 14, 2, 9) if mode else (17, 11, 4, 13)
+                for endpoint in ENDPOINTS:
+                    response = client.get(f"/api/v1/marksix/{endpoint}", params={"include_special": mode})
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.headers["x-marksix-source-revision"], revision)
+                    self.assertEqual(response.json()["source_revision"], revision)
+                    data = response.json()["data"]
+                    self.assertIs(data["include_special"], mode)
+                    if endpoint in ENDPOINTS[1:5]:
+                        self.assertEqual(data["count"], expected_counts[ENDPOINTS.index(endpoint) - 1])
+                    if endpoint == "focus-observation":
+                        self.assertEqual(data["metadata"]["qualified_count"], 14 if mode else 9)
+                    if endpoint == "momentum-changes":
+                        self.assertEqual(data["comparison"]["current_draw"]["draw_no"], records[0]["draw"])
+                        self.assertEqual(data["comparison"]["previous_draw"]["draw_no"], records[1]["draw"])
+
     def test_api_authentication_and_same_snapshot_header(self):
         with TestClient(app) as client, patch(
             "marksix_cloud_backend.main.synchronize",
