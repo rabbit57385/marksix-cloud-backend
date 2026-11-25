@@ -58,6 +58,24 @@ Overview errors: 404 for no analysis draws; 409 with required_draw_count=100
 and actual_draw_count for insufficient history; 503 for missing DB configuration,
 driver failure or invalid stored draws. No fallback data or partial overview.
 
+## Historical grades (P1-03)
+
+GET /api/v1/marksix/grade-history accepts window 10/30/50/100 (default 30)
+and include_special (default false). It returns the existing history envelope
+with status, source_revision and data, using the MarkSix formula identifier
+marksix_v7_grade_history_v1. The snapshot ID is the hash part of the source
+revision, shared by all windows and both modes for the same stored history.
+Each result uses the latest 100 draws strictly preceding its target. The
+target's main and special balls are used only to count actual hits, after
+grades have been determined. The special ball remains separate in both modes.
+Expected hits use candidate count times 6/49 or 7/49.
+
+The returned count is limited to targets with at least 100 preceding draws.
+With insufficient history, complete_window is false and incomplete_reason is
+insufficient_pre_draw_history. An empty result has no fabricated grades.
+The endpoint reads one immutable MarkSix snapshot and returns its revision
+in X-MarkSix-Source-Revision, with no database writes or official API calls.
+
 ## Existing updater (inventory; not executed in Phase 5A)
 
 From repository root:

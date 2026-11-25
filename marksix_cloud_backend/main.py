@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from .analysis_engine import build_analysis_foundation
 from .count_missing_cross import count_missing_cross_response
+from .grade_history import grade_history_response
 from .analysis_models import AnalysisResponse
 from .analysis_response import analysis_response
 from .analysis_repository import InvalidCutoff, validate_cutoffs
@@ -226,3 +227,16 @@ def count_missing_cross(
 ):
     response.headers["X-MarkSix-Source-Revision"] = source_revision(snapshot)
     return count_missing_cross_response(snapshot, window, include_special)
+
+
+@app.get("/api/v1/marksix/grade-history")
+def grade_history(
+    response: Response,
+    window: Annotated[int, Depends(get_statistics_window)],
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    include_special: bool = False,
+):
+    """Historical V7 grades calculated exclusively from pre-draw records."""
+    result = grade_history_response(snapshot, window, include_special)
+    response.headers["X-MarkSix-Source-Revision"] = result["source_revision"]
+    return result

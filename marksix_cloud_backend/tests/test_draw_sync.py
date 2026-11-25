@@ -86,6 +86,23 @@ class DrawSyncDatabaseTest(unittest.TestCase):
                 self.assertEqual(cross.headers["x-marksix-source-revision"],
                                  analysis.headers["x-marksix-source-revision"])
 
+    def test_grade_history_reads_isolated_postgresql(self):
+        from marksix_cloud_backend.tests.test_analysis_foundation import history
+        from marksix_cloud_backend.analysis_repository import AnalysisSnapshot
+        from marksix_cloud_backend.grade_history import grade_history_response
+        rows = history(203)
+        with connect_database() as connection:
+            for row in rows:
+                store_draw(connection, row)
+        snapshot = AnalysisSnapshot.from_records(rows)
+        with TestClient(app) as client:
+            for mode in (False, True):
+                for window in (10, 30, 50, 100):
+                    reply = client.get("/api/v1/marksix/grade-history",
+                                       params={"include_special": mode, "window": window})
+                    self.assertEqual(reply.status_code, 200)
+                    self.assertEqual(reply.json(), grade_history_response(snapshot, window, mode))
+
     def test_api_authentication_and_same_snapshot_header(self):
         with TestClient(app) as client, patch(
             "marksix_cloud_backend.main.synchronize",
