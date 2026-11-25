@@ -134,7 +134,11 @@ The API process does not start a scheduler or run a migration. Apply
 `draw_sync_migration.sql` explicitly after database approval, then configure
 `MARKSIX_CATCH_UP_TOKEN` on the server and in the scheduler secret store.
 Inspect the hosting dashboard for an existing MarkSix schedule and select one
-owner before enabling the repository workflow. The workflow sends one request
+owner before enabling the repository workflow. Both scheduled and manually
+triggered jobs are skipped unless the repository Actions variable
+MARKSIX_DRAW_SYNC_ENABLED is explicitly set to true. Leave it unset or false
+until production approval and a successful manual catch-up. Do not configure
+the scheduler secret before that approval. The workflow sends one request
 per run. A later schedule retries a transient failure without replaying an
 uncertain POST. The CLI equivalent is
 `python -m marksix_cloud_backend.draw_sync`.

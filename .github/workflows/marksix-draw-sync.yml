@@ -14,6 +14,8 @@ concurrency:
 
 jobs:
   synchronize:
+    # Fail closed: both scheduled and manual runs require explicit approval.
+    if: ${{ vars.MARKSIX_DRAW_SYNC_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
