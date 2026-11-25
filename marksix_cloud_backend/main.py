@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from .analysis_engine import _analyze, build_analysis_foundation
 from . import momentum_signals
 from .focus_observation import get_focus_observation
+from .smart_selection import get_smart_selection
 from .count_missing_cross import count_missing_cross_response
 from .grade_history import grade_history_response
 from .analysis_models import AnalysisResponse
@@ -308,3 +309,22 @@ def focus_observation(
 ):
     analysis = build_analysis_foundation(snapshot, include_special)
     return signal_response(response, snapshot, get_focus_observation(snapshot, analysis))
+
+
+@app.get("/api/v1/marksix/smart-selection")
+def smart_selection(
+    response: Response,
+    snapshot: Annotated[AnalysisSnapshot, Depends(get_analysis_snapshot)],
+    count: int = 6,
+    strategy: str = "balanced",
+    locked: str = "",
+    excluded: str = "",
+    include_special: bool = False,
+):
+    try:
+        data = get_smart_selection(snapshot, count, strategy, locked, excluded, include_special)
+    except InsufficientHistory:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return signal_response(response, snapshot, data)

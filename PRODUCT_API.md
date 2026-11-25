@@ -155,3 +155,23 @@ and recent draws expose the same header on `consistent=true`, using that same
 analysis scope. The default raw endpoints keep their archive semantics.
 Enable the V3 `MARKSIX_DRAW_SYNC` build flag only after confirming the deployed
 read contract. V3 checks freshness and never holds the operator token.
+
+## Smart selection (P1-07)
+
+`GET /api/v1/marksix/smart-selection` accepts `count` (6..10, default 6),
+`strategy` (`v7`, `explosion`, `recovery`, `reversal`, `balanced`, default
+`balanced`), comma-separated `locked` and `excluded` numbers (1..49), and
+`include_special` (default false). The response is `{status, source_revision,
+data}` and includes `X-MarkSix-Source-Revision` from the same immutable
+post-2020 MarkSix snapshot as the analysis endpoints. No database writes.
+
+`data` includes game `marksix`, analysis engine `smart_selection_b3`, formula
+`b3_v1.0_marksix`, engine version, analysis mode, probability (6/49 or 7/49),
+latest draw with six main numbers and separate special number, strategy/name,
+requested count/count, locked/excluded, rule, and unique `numbers`. Every row
+contains number, V7 score, grade, momentum type, four momentum ratios and
+optional strategy detail. The original B3 ranking, fallback to V7, weighted
+sampling without replacement, balanced 40/20/20/20 ranking and A4 penalties
+are retained. Count is a candidate pool size, not a seven-number ticket.
+Invalid constraints return 400; malformed typed parameters 422; fewer than 101
+valid history records 409; DB problems 503. No partial or empty success.
